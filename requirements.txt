@@ -2,4 +2,4 @@ aiogram==3.22.0
 pydantic==2.11.10
 pydantic-core==2.33.2
 requests==2.32.5
-
+python-telegram-bot==21.6
