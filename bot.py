@@ -5,9 +5,9 @@ import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, CallbackQueryHandler, filters
 
-BOT_TOKEN = "8589947061:AAErdg9WHXlaEMzAloh27BnNjzaByFUJwuw"
+BOT_TOKEN = "8504549391:AAGc96vx_H6NPiCDBKEOkgpNPu930B7OviI"
 OWM_API_KEY = "e4647864c6cf2bf55cab616b4e8a601a"
-GEMINI_API_KEY = "AIzaSyBl4fhrU2Y-pWEv8Ton-5MLv6M6hFordoU"
+GEMINI_API_KEY = "AIzaSyBYSL28lgPgGHUwp-3I4Bcdz1SbDcuLVEQ"
 
 POPULAR_CITIES = ["Astana", "Almaty", "Shymkent", "Aktau"]
 active_chats = {}
