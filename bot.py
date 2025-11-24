@@ -86,17 +86,41 @@ def try_parse_json_from_text(text: str):
         return None
 
 def ai_assistant_decision(user_text: str):
-    prompt = f"""
-Ты ассистент Telegram-бота. У тебя есть инструмент get_weather(city).
-Если пользователь хочет погоду — верни JSON: {{ "action": "weather", "city": "<город>" }}.
-Иначе — верни JSON: {{ "action": "reply", "text": "<ответ>" }}.
-Ответь ТОЛЬКО JSON (можно в одну строку). Текст пользователя: "{user_text}"
+    prompt = f"""Ты — умный ассистент Telegram-бота. Ответь ОДНОЙ СТРОКОЙ и НИЧЕГО БОЛЬШЕ: 
+Либо начни строку с `WEATHER:` и после двоеточия укажи город/топоним (на любом языке или транслитерации), 
+либо начни строку с `REPLY:` и после двоеточия дай развёрнутый информативный ответ (не повторяй вход).
+Если явно про погоду (слова "погода", "сколько градусов", "хочу погоду", "дай погоду", просто название города) — используй WEATHER.
+Если это вопрос, тема или название страны без запроса погоды — используй REPLY и дай полезную справку.
+Примеры:
+Астана -> WEATHER: Astana
+хочу погоду в алматы -> WEATHER: Almaty
+почему небо синее? -> REPLY: Небо кажется синим потому что...
+Кыргызстан -> REPLY: Кыргызстан — страна в Центральной Азии...
+Текст пользователя: "{user_text}"
 """.strip()
+
     raw = ask_gemini(prompt).strip()
-    parsed = try_parse_json_from_text(raw)
-    if isinstance(parsed, dict):
-        return parsed
-    return {"action": "reply", "text": raw}
+    cleaned = clean_ai_response(raw)
+    if not cleaned:
+        return {"action": "reply", "text": "Извини, не смог получить ответ от AI."}
+
+    up = cleaned.strip()
+    if up.upper().startswith("WEATHER:"):
+        city = up[len("WEATHER:"):].strip()
+        if not city:
+            return {"action": "reply", "text": "ИИ сказал, что хочет показать погоду, но не указал город."}
+        return {"action": "weather", "city": city}
+    if up.upper().startswith("REPLY:"):
+        text = up[len("REPLY:"):].strip()
+        if not text:
+            return {"action": "reply", "text": "Извини, ИИ вернул пустой ответ."}
+        return {"action": "reply", "text": text}
+
+    # fallback: если LLM случайно ответил без префикса, попытаемся догадаться
+    lower = up.lower()
+    if "погод" in lower or "градус" in lower or "сколько" in lower and "град" in lower:
+        return {"action": "weather", "city": up}
+    return {"action": "reply", "text": up}
 
 def get_keyboard():
     keyboard = [[InlineKeyboardButton(city, callback_data=city)] for city in POPULAR_CITIES]
@@ -124,20 +148,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not active_chats.get(chat_id, False):
         await update.message.reply_text("Напишите /start, чтобы начать диалог со мной.")
         return
+
     user_text = update.message.text.strip()
-    geo = geocode_city(user_text)
-    if geo:
-        weather = weather_by_coords(geo["lat"], geo["lon"])
-        if weather:
-            await update.message.reply_text(weather)
-            await start_goodbye_timer(update, chat_id)
-            return
+    # Сначала просим LLM решить — WEATHER или REPLY
     decision = ai_assistant_decision(user_text)
     action = (decision.get("action") or "").lower()
+
     if action == "weather":
-        city = decision.get("city") or ""
+        city = decision.get("city") or user_text
         geo = geocode_city(city)
         if not geo:
+            # попробуем геокодить исходный текст как fallback
             geo = geocode_city(user_text)
         if geo:
             weather = weather_by_coords(geo["lat"], geo["lon"])
@@ -150,10 +171,23 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await start_goodbye_timer(update, chat_id)
                 return
         else:
-            await update.message.reply_text(f"Не удалось найти город: «{city}». Попробуй написать по-другому.")
+            await update.message.reply_text(f"Не удалось найти город: «{city}». Попробуйте написать по-другому.")
             await start_goodbye_timer(update, chat_id)
             return
-    reply_text = decision.get("text") or "Извини, я не понял."
+
+    # action == reply
+    reply_text = decision.get("text") or ""
+    # если ИИ вернул ровно вход — попросим ИИ дать развёрнутый ответ, но только один раз
+    if reply_text.strip() and reply_text.strip().lower() == user_text.strip().lower():
+        retry_prompt = f"Пользователь: \"{user_text}\". Не повторяй вход. Дай развёрнутый полезный ответ в одну-две короткие абзацы."
+        raw2 = ask_gemini(retry_prompt).strip()
+        cleaned2 = clean_ai_response(raw2)
+        if cleaned2 and cleaned2.strip().lower() != user_text.strip().lower():
+            reply_text = cleaned2
+
+    if not reply_text:
+        reply_text = "Извини, я не понял. Попробуй переформулировать."
+
     await update.message.reply_text(reply_text)
     await start_goodbye_timer(update, chat_id)
 
