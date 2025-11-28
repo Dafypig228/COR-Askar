@@ -7,7 +7,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Con
 
 BOT_TOKEN = "8589947061:AAErdg9WHXlaEMzAloh27BnNjzaByFUJwuw"
 OWM_API_KEY = "e4647864c6cf2bf55cab616b4e8a601a"
-GEMINI_API_KEY = "AIzaSyBYSL28lgPgGHUwp-3I4Bcdz1SbDcuLVEQ"
+GEMINI_API_KEY = "AIzaSyA1vbHSjJoeYMlQHeJ7Ilg5sBpnmr1ioTA"
 
 POPULAR_CITIES = ["Astana", "Almaty", "Shymkent", "Aktau"]
 active_chats = {}
